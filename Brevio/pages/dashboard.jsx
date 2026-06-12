@@ -9,8 +9,6 @@ const C = {
   text: "#e8e6e0", muted: "#6b7280",
 };
 
-const FONT_IMPORT = "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap";
-
 const TICKER_DB = [
   { ticker: "AAPL", name: "Apple Inc.", type: "Stock" },
   { ticker: "AMZN", name: "Amazon.com Inc.", type: "Stock" },
@@ -47,6 +45,14 @@ const TICKER_DB = [
   { ticker: "SILVER", name: "Silver Spot", type: "Commodity" },
 ];
 
+// Tickers supported by our /api/quote route (server-side Finnhub)
+const LIVE_TICKERS = [
+  "AAPL","NVDA","MSFT","AMZN","GOOGL","META","TSLA","NFLX","AMD",
+  "JPM","V","NKE","DIS",
+  "NESN","NOVN","ROG","UBS","ABBN","ZURN","SREN",
+  "VOO","QQQ","SPY","GLD","VTI",
+];
+
 function genCandles(base, count, vol, trend) {
   const out = [];
   let p = base;
@@ -61,71 +67,54 @@ function genCandles(base, count, vol, trend) {
   return out;
 }
 
+// Fallback static data (only used if live fetch fails)
 const PD = {
-  AAPL: { price: 213.45, change: 2.34, pct: 1.11, h52: 237.23, l52: 164.08, cap: "3.7T", vol: "58.2M", pe: "28.4", div: "0.96%", c1D: genCandles(211,78,0.003,0.02), c30D: genCandles(195,30,0.015,0.04), c1Y: genCandles(165,52,0.025,0.06) },
-  NVDA: { price: 875.20, change: 18.50, pct: 2.16, h52: 974.00, l52: 410.50, cap: "2.1T", vol: "42.1M", pe: "72.3", div: "0.03%", c1D: genCandles(856,78,0.005,0.03), c30D: genCandles(780,30,0.025,0.06), c1Y: genCandles(450,52,0.04,0.1) },
-  NESN: { price: 94.82, change: -0.34, pct: -0.36, h52: 108.40, l52: 88.10, cap: "89B", vol: "2.8M", pe: "20.1", div: "3.40%", c1D: genCandles(95.2,78,0.002,-0.005), c30D: genCandles(96.5,30,0.01,-0.02), c1Y: genCandles(105,52,0.015,-0.04) },
-  MSFT: { price: 415.80, change: 5.20, pct: 1.27, h52: 468.35, l52: 309.45, cap: "3.1T", vol: "21.4M", pe: "32.1", div: "0.74%", c1D: genCandles(410,78,0.003,0.02), c30D: genCandles(390,30,0.018,0.05), c1Y: genCandles(310,52,0.028,0.08) },
+  AAPL: { price: 296.52, change: 1.20, pct: 0.41, h52: 317.40, l52: 195.07, cap: "4.3T", vol: "56.8M", pe: "35.8", div: "0.52%", c1D: genCandles(295,78,0.003,0.02), c30D: genCandles(275,30,0.015,0.04), c1Y: genCandles(210,52,0.025,0.06) },
+  NVDA: { price: 135.50, change: 2.10, pct: 1.57, h52: 153.13, l52: 86.02, cap: "3.3T", vol: "198.4M", pe: "38.2", div: "0.03%", c1D: genCandles(133,78,0.005,0.03), c30D: genCandles(120,30,0.025,0.06), c1Y: genCandles(90,52,0.04,0.1) },
+  NESN: { price: 87.50, change: -0.30, pct: -0.34, h52: 103.20, l52: 72.28, cap: "82B", vol: "3.1M", pe: "19.8", div: "3.60%", c1D: genCandles(87.8,78,0.002,-0.005), c30D: genCandles(89,30,0.01,-0.02), c1Y: genCandles(100,52,0.015,-0.04) },
+  MSFT: { price: 470.00, change: 3.50, pct: 0.75, h52: 497.00, l52: 344.79, cap: "3.5T", vol: "18.2M", pe: "34.5", div: "0.65%", c1D: genCandles(466,78,0.003,0.02), c30D: genCandles(450,30,0.018,0.05), c1Y: genCandles(350,52,0.028,0.08) },
+  AMZN: { price: 225.00, change: 1.80, pct: 0.81, h52: 242.52, l52: 151.61, cap: "2.4T", vol: "35.1M", pe: "42.1", div: "—", c1D: genCandles(223,78,0.003,0.02), c30D: genCandles(210,30,0.018,0.05), c1Y: genCandles(160,52,0.028,0.08) },
+  GOOGL: { price: 195.00, change: 0.90, pct: 0.46, h52: 207.05, l52: 140.53, cap: "2.4T", vol: "22.3M", pe: "21.5", div: "0.49%", c1D: genCandles(194,78,0.003,0.01), c30D: genCandles(185,30,0.015,0.04), c1Y: genCandles(150,52,0.022,0.07) },
+  META: { price: 680.00, change: 5.20, pct: 0.77, h52: 740.91, l52: 414.50, cap: "1.7T", vol: "14.8M", pe: "28.3", div: "—", c1D: genCandles(675,78,0.004,0.02), c30D: genCandles(640,30,0.02,0.06), c1Y: genCandles(430,52,0.035,0.09) },
+  TSLA: { price: 340.00, change: -4.20, pct: -1.22, h52: 488.54, l52: 138.80, cap: "1.1T", vol: "88.5M", pe: "120.3", div: "—", c1D: genCandles(344,78,0.007,-0.02), c30D: genCandles(360,30,0.03,-0.05), c1Y: genCandles(180,52,0.05,0.1) },
+  NFLX: { price: 1290.00, change: 8.50, pct: 0.66, h52: 1358.00, l52: 542.01, cap: "554B", vol: "4.2M", pe: "55.2", div: "—", c1D: genCandles(1282,78,0.004,0.02), c30D: genCandles(1200,30,0.02,0.06), c1Y: genCandles(600,52,0.04,0.12) },
+  AMD: { price: 145.00, change: 1.30, pct: 0.90, h52: 187.28, l52: 76.48, cap: "235B", vol: "42.1M", pe: "98.5", div: "—", c1D: genCandles(144,78,0.005,0.02), c30D: genCandles(135,30,0.025,0.05), c1Y: genCandles(85,52,0.04,0.08) },
+  JPM: { price: 285.00, change: 1.10, pct: 0.39, h52: 295.00, l52: 183.00, cap: "820B", vol: "9.8M", pe: "13.2", div: "2.28%", c1D: genCandles(284,78,0.002,0.01), c30D: genCandles(270,30,0.012,0.04), c1Y: genCandles(195,52,0.018,0.06) },
+  V: { price: 380.00, change: 1.60, pct: 0.42, h52: 394.00, l52: 252.00, cap: "782B", vol: "7.2M", pe: "32.1", div: "0.72%", c1D: genCandles(378,78,0.002,0.01), c30D: genCandles(360,30,0.012,0.04), c1Y: genCandles(270,52,0.018,0.06) },
+  NKE: { price: 62.00, change: -0.40, pct: -0.64, h52: 97.13, l52: 52.28, cap: "91B", vol: "12.5M", pe: "22.4", div: "2.26%", c1D: genCandles(62.4,78,0.003,-0.01), c30D: genCandles(65,30,0.015,-0.03), c1Y: genCandles(95,52,0.02,-0.06) },
+  DIS: { price: 115.00, change: 0.80, pct: 0.70, h52: 123.74, l52: 83.91, cap: "209B", vol: "11.3M", pe: "38.2", div: "—", c1D: genCandles(114,78,0.003,0.01), c30D: genCandles(108,30,0.015,0.04), c1Y: genCandles(88,52,0.02,0.06) },
+  NOVN: { price: 95.00, change: 0.20, pct: 0.21, h52: 102.50, l52: 78.32, cap: "180B", vol: "4.2M", pe: "17.8", div: "3.60%", c1D: genCandles(94.8,78,0.002,0.005), c30D: genCandles(92,30,0.01,0.02), c1Y: genCandles(80,52,0.012,0.04) },
+  ROG: { price: 245.00, change: -0.80, pct: -0.33, h52: 285.00, l52: 198.00, cap: "210B", vol: "2.1M", pe: "15.2", div: "3.80%", c1D: genCandles(245.8,78,0.002,-0.005), c30D: genCandles(250,30,0.01,-0.02), c1Y: genCandles(270,52,0.015,-0.04) },
+  UBS: { price: 28.50, change: 0.15, pct: 0.53, h52: 32.00, l52: 21.50, cap: "92B", vol: "8.5M", pe: "12.1", div: "2.80%", c1D: genCandles(28.35,78,0.003,0.01), c30D: genCandles(27,30,0.012,0.03), c1Y: genCandles(22,52,0.018,0.05) },
+  ABBN: { price: 55.00, change: 0.30, pct: 0.55, h52: 58.50, l52: 38.20, cap: "110B", vol: "3.8M", pe: "18.5", div: "1.50%", c1D: genCandles(54.7,78,0.002,0.01), c30D: genCandles(52,30,0.012,0.03), c1Y: genCandles(40,52,0.018,0.06) },
+  ZURN: { price: 520.00, change: 2.50, pct: 0.48, h52: 558.00, l52: 420.00, cap: "82B", vol: "0.8M", pe: "14.2", div: "5.20%", c1D: genCandles(517.5,78,0.002,0.01), c30D: genCandles(500,30,0.01,0.03), c1Y: genCandles(430,52,0.015,0.05) },
+  SREN: { price: 108.00, change: 0.40, pct: 0.37, h52: 118.00, l52: 88.00, cap: "32B", vol: "0.5M", pe: "11.8", div: "6.10%", c1D: genCandles(107.6,78,0.002,0.01), c30D: genCandles(104,30,0.01,0.02), c1Y: genCandles(90,52,0.012,0.04) },
+  VOO: { price: 550.00, change: 2.80, pct: 0.51, h52: 575.00, l52: 390.00, cap: "—", vol: "4.5M", pe: "—", div: "1.28%", c1D: genCandles(547,78,0.002,0.01), c30D: genCandles(525,30,0.012,0.04), c1Y: genCandles(410,52,0.02,0.07) },
+  QQQ: { price: 510.00, change: 3.20, pct: 0.63, h52: 540.00, l52: 348.00, cap: "—", vol: "32.1M", pe: "—", div: "0.58%", c1D: genCandles(507,78,0.003,0.02), c30D: genCandles(480,30,0.018,0.05), c1Y: genCandles(360,52,0.028,0.09) },
+  SPY: { price: 595.00, change: 2.50, pct: 0.42, h52: 615.00, l52: 420.00, cap: "—", vol: "48.2M", pe: "—", div: "1.20%", c1D: genCandles(592,78,0.002,0.01), c30D: genCandles(565,30,0.012,0.04), c1Y: genCandles(435,52,0.02,0.07) },
+  GLD: { price: 295.00, change: 1.20, pct: 0.41, h52: 310.00, l52: 195.00, cap: "—", vol: "8.8M", pe: "—", div: "—", c1D: genCandles(293.8,78,0.003,0.01), c30D: genCandles(280,30,0.015,0.04), c1Y: genCandles(200,52,0.025,0.08) },
+  VTI: { price: 290.00, change: 1.40, pct: 0.49, h52: 305.00, l52: 200.00, cap: "—", vol: "3.2M", pe: "—", div: "1.35%", c1D: genCandles(288.6,78,0.002,0.01), c30D: genCandles(275,30,0.012,0.04), c1Y: genCandles(210,52,0.02,0.07) },
 };
 
-const ANALYSIS = {
-  AAPL: { verdict: "BULLISH", company: "Apple Inc.", summary: "Apple continues to dominate premium consumer electronics with a deeply loyal ecosystem. Services revenue now represents over 25% of total revenue providing high-margin recurring income.", opps: ["Services growing 15% annually","Vision Pro opens new category","Emerging market expansion"], risks: ["iPhone plateau in mature markets","China geopolitical risk","App Store regulatory pressure"], metrics: "P/E ~28x, $3.7T market cap. Services margins at 74% vs hardware 36%.", bottom: "Apple's services flywheel and brand loyalty make it a core long-term holding." },
-  NVDA: { verdict: "BULLISH", company: "NVIDIA Corporation", summary: "NVIDIA dominates AI training infrastructure with data center revenue up 200% year-over-year. The Blackwell GPU architecture is ramping faster than expected.", opps: ["AI infrastructure spending accelerating","Blackwell ahead of schedule","CUDA ecosystem moat"], risks: ["Extreme valuation multiple","US export restrictions on China","AMD competition growing"], metrics: "~35x forward revenue. Data center now 87% of revenue at $47B annually.", bottom: "NVIDIA's AI monopoly is real but valuation leaves little room for error — buy on dips." },
-  NESN: { verdict: "NEUTRAL", company: "Nestlé S.A.", summary: "Nestlé remains one of the world's most defensive consumer staples with 2,000 brands across 186 countries. Organic growth has slowed to 2% as pricing normalization continues.", opps: ["Premium mix driving margins","Emerging market growth","Health and wellness momentum"], risks: ["Volume under price fatigue pressure","Private label competition","Restructuring costs"], metrics: "Dividend yield 3.4%, P/E 20x. CHF 89B market cap on SIX.", bottom: "Reliable defensive holding with steady dividends but limited near-term upside." },
-  MSFT: { verdict: "BULLISH", company: "Microsoft Corporation", summary: "Microsoft is executing strongly on AI integration across Azure, Office 365 and Copilot. Azure cloud growth reaccelerated to 31% driven by AI workloads.", opps: ["Azure AI growing faster than AWS","Copilot across 400M Office users","Enterprise AI in early innings"], risks: ["Antitrust scrutiny on AI","Ballooning capex requirements","Azure tied to AI spending cycles"], metrics: "P/E 32x forward. Cloud 54% of revenue. $3.1T market cap.", bottom: "Microsoft's enterprise AI positioning is unmatched — highest conviction large-cap tech holding." },
-};
-
-const DEFAULT_WL = ["AAPL", "NVDA", "NESN", "MSFT"];
 const TFS = ["1D", "30D", "1Y"];
 
-// Finnhub — key fetched server-side via /api/quote to avoid browser exposure
-const LIVE_TICKERS = ["AAPL", "NESN"];
-const FH_SYMBOL = { AAPL: "AAPL", NESN: "NESN.SW" };
-const FINNHUB_KEY = "d7irsq9r01qn2qav5vs0d7irsq9r01qn2qav5vsg";
-
-async function fetchFHQuote(ticker) {
-  try {
-    const sym = FH_SYMBOL[ticker] || ticker;
-    const r = await fetch("https://finnhub.io/api/v1/quote?symbol=" + sym + "&token=" + FINNHUB_KEY);
-    const d = await r.json();
-    if (!d.c || d.c === 0) return null;
-    return { price: d.c, change: d.d, pct: d.dp };
-  } catch { return null; }
-}
-
-async function fetchFHCandles(ticker, resolution, from, to) {
-  try {
-    const sym = FH_SYMBOL[ticker] || ticker;
-    const r = await fetch("https://finnhub.io/api/v1/stock/candle?symbol=" + sym + "&resolution=" + resolution + "&from=" + from + "&to=" + to + "&token=" + FINNHUB_KEY);
-    const d = await r.json();
-    if (d.s !== "ok" || !d.c) return null;
-    return d.t.map((t, i) => ({ open: d.o[i], high: d.h[i], low: d.l[i], close: d.c[i], time: t }));
-  } catch { return null; }
-}
-
-function useLiveData(ticker) {
+// ─── LIVE PRICE HOOK ──────────────────────────────────────────────────────────
+function useLivePrice(ticker) {
   const [quote, setQuote] = useState(null);
-  const [liveCandles, setLiveCandles] = useState({ c1D: null, c30D: null, c1Y: null });
   const [loading, setLoading] = useState(false);
-  const isLive = LIVE_TICKERS.includes(ticker) && FINNHUB_KEY !== "";
+  const isLive = LIVE_TICKERS.includes(ticker);
 
   useEffect(() => {
     if (!isLive) return;
     setLoading(true);
-    const now = Math.floor(Date.now() / 1000);
-    const day = 86400;
-    Promise.all([
-      fetchFHQuote(ticker),
-      fetchFHCandles(ticker, "5", now - day, now),
-      fetchFHCandles(ticker, "D", now - 30 * day, now),
-      fetchFHCandles(ticker, "D", now - 365 * day, now),
-    ]).then(([q, c1D, c30D, c1Y]) => {
-      if (q) setQuote(q);
-      setLiveCandles({ c1D, c30D, c1Y });
-    }).finally(() => setLoading(false));
+    fetch(`/api/quote?ticker=${ticker}`)
+      .then(r => r.json())
+      .then(d => { if (d.price) setQuote(d); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [ticker]);
 
-  return { quote, liveCandles, loading, isLive };
+  return { quote, loading, isLive };
 }
 
 // ─── SMALL CHART ──────────────────────────────────────────────────────────────
@@ -475,15 +464,18 @@ function SignupModal({ onClose, onSignup, trigger }) {
 // ─── WATCHLIST CARD ───────────────────────────────────────────────────────────
 function WatchCard({ ticker, onOpen, alertOn, onToggleAlert, onRemove, isDemo, onAuth }) {
   const [tf, setTf] = useState("30D");
-  const p = PD[ticker];
-  const a = ANALYSIS[ticker];
-  const { quote, liveCandles, loading, isLive } = useLiveData(ticker);
-  if (!p || !a) return null;
+  const p = PD[ticker] || PD.AAPL;
+  const { quote, loading, isLive } = useLivePrice(ticker);
+
   const displayPrice = quote ? quote.price : p.price;
   const displayPct = quote ? quote.pct : p.pct;
   const up = displayPct >= 0;
   const pc = up ? C.green : C.red;
-  const candles = tf === "1D" ? (isLive && liveCandles.c1D ? liveCandles.c1D : p.c1D) : tf === "1Y" ? (isLive && liveCandles.c1Y ? liveCandles.c1Y : p.c1Y) : (isLive && liveCandles.c30D ? liveCandles.c30D : p.c30D);
+
+  // Dynamic verdict based on real price movement
+  const verdict = displayPct > 0.5 ? "BULLISH" : displayPct < -0.5 ? "BEARISH" : "NEUTRAL";
+
+  const candles = tf === "1D" ? p.c1D : tf === "1Y" ? p.c1Y : p.c30D;
 
   return (
     <div style={{ background: C.panel, border: "1px solid " + C.border, borderRadius: "10px", overflow: "hidden", animation: "fadeUp 0.35s ease", transition: "border-color 0.2s", cursor: "pointer" }}
@@ -494,10 +486,12 @@ function WatchCard({ ticker, onOpen, alertOn, onToggleAlert, onRemove, isDemo, o
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
           <div>
             <div style={{ fontFamily: "Playfair Display, serif", fontSize: "18px", color: C.accent, letterSpacing: "0.06em", lineHeight: 1 }}>{ticker}</div>
-            <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "10px", color: C.muted, marginTop: "2px", fontStyle: "italic" }}>{a.company}</div>
+            <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "10px", color: C.muted, marginTop: "2px", fontStyle: "italic" }}>
+              {TICKER_DB.find(t => t.ticker === ticker)?.name || ticker}
+            </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-            <VerdictBadge verdict={a.verdict} />
+            <VerdictBadge verdict={verdict} />
             <button onClick={e => { e.stopPropagation(); isDemo ? onAuth("alert") : onToggleAlert(ticker); }}
               style={{ background: alertOn ? C.accent + "15" : "transparent", border: "1px solid " + (alertOn ? C.accent + "55" : C.border), borderRadius: "4px", padding: "3px 7px", cursor: "pointer", display: "flex", alignItems: "center", gap: "3px" }}>
               {isDemo && <Lock style={{ width: "7px", height: "7px", color: C.muted }} />}
@@ -513,12 +507,18 @@ function WatchCard({ ticker, onOpen, alertOn, onToggleAlert, onRemove, isDemo, o
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "baseline", gap: "7px", marginBottom: "4px" }}>
-          <span style={{ fontFamily: "Playfair Display, serif", fontSize: "20px", color: C.text, fontWeight: 500 }}>${displayPrice.toFixed(2)}</span>
-          <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "11px", color: pc, fontWeight: 500 }}>{up ? "+" : ""}{displayPct.toFixed(2)}%</span>
-          {isLive && (
+          {loading ? (
+            <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.muted }}>Loading...</span>
+          ) : (
+            <>
+              <span style={{ fontFamily: "Playfair Display, serif", fontSize: "20px", color: C.text, fontWeight: 500 }}>${displayPrice.toFixed(2)}</span>
+              <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "11px", color: pc, fontWeight: 500 }}>{up ? "+" : ""}{displayPct.toFixed(2)}%</span>
+            </>
+          )}
+          {isLive && !loading && (
             <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
-              <div style={{ width: "5px", height: "5px", borderRadius: "50%", background: loading ? C.muted : C.green, boxShadow: loading ? "none" : "0 0 4px " + C.green, animation: loading ? "none" : "livePulse 2s ease-in-out infinite" }} />
-              <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "8px", color: loading ? C.muted : C.green, letterSpacing: "0.08em" }}>{loading ? "..." : "LIVE"}</span>
+              <div style={{ width: "5px", height: "5px", borderRadius: "50%", background: C.green, boxShadow: "0 0 4px " + C.green, animation: "livePulse 2s ease-in-out infinite" }} />
+              <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "8px", color: C.green, letterSpacing: "0.08em" }}>LIVE</span>
             </div>
           )}
         </div>
@@ -555,15 +555,14 @@ function DetailPage({ ticker, onBack, isDemo, onAuth, prefetchedAnalysis }) {
   const [aiAnalysis, setAiAnalysis] = useState(prefetchedAnalysis || null);
   const [aiLoading, setAiLoading] = useState(!prefetchedAnalysis);
 
-  const fallback = ANALYSIS[ticker] || ANALYSIS.AAPL;
   const p = PD[ticker] || PD.AAPL;
-  const { quote, liveCandles, loading: priceLoading, isLive } = useLiveData(ticker);
+  const { quote, loading: priceLoading, isLive } = useLivePrice(ticker);
   const displayPrice = quote ? quote.price : p.price;
   const displayChange = quote ? quote.change : p.change;
   const displayPct = quote ? quote.pct : p.pct;
   const up = displayPct >= 0;
   const pc = up ? C.green : C.red;
-  const candles = tf === "1D" ? (isLive && liveCandles.c1D ? liveCandles.c1D : p.c1D) : tf === "1Y" ? (isLive && liveCandles.c1Y ? liveCandles.c1Y : p.c1Y) : (isLive && liveCandles.c30D ? liveCandles.c30D : p.c30D);
+  const candles = tf === "1D" ? p.c1D : tf === "1Y" ? p.c1Y : p.c30D;
 
   useEffect(() => {
     if (prefetchedAnalysis || isDemo) { setAiLoading(false); return; }
@@ -579,7 +578,7 @@ function DetailPage({ ticker, onBack, isDemo, onAuth, prefetchedAnalysis }) {
       .finally(() => setAiLoading(false));
   }, [ticker]);
 
-  const a = aiAnalysis || fallback;
+  const a = aiAnalysis || { verdict: "NEUTRAL", company: ticker, summary: "Sign up to unlock AI analysis.", opps: [], risks: [], metrics: "—", bottom: "—" };
 
   const metrics = [
     { label: "Market Cap", value: p.cap }, { label: "Volume", value: p.vol },
@@ -627,7 +626,9 @@ function DetailPage({ ticker, onBack, isDemo, onAuth, prefetchedAnalysis }) {
       <div style={{ maxWidth: "760px", margin: "0 auto", padding: "20px 16px 48px" }}>
         <div style={{ marginBottom: "20px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-            <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", color: C.muted, fontStyle: "italic" }}>{a.company || a.companyName}</div>
+            <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", color: C.muted, fontStyle: "italic" }}>
+              {TICKER_DB.find(t => t.ticker === ticker)?.name || ticker}
+            </div>
             {isLive && (
               <div style={{ display: "flex", alignItems: "center", gap: "4px", background: priceLoading ? C.muted + "18" : C.green + "18", border: "1px solid " + (priceLoading ? C.muted : C.green) + "44", borderRadius: "4px", padding: "2px 7px" }}>
                 <div style={{ width: "5px", height: "5px", borderRadius: "50%", background: priceLoading ? C.muted : C.green, boxShadow: priceLoading ? "none" : "0 0 5px " + C.green, animation: priceLoading ? "none" : "livePulse 2s ease-in-out infinite" }} />
@@ -642,7 +643,7 @@ function DetailPage({ ticker, onBack, isDemo, onAuth, prefetchedAnalysis }) {
               <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: pc, background: pc + "15", border: "1px solid " + pc + "33", borderRadius: "4px", padding: "2px 8px" }}>{up ? "+" : ""}{displayPct.toFixed(2)}%</span>
             </div>
           </div>
-          {!isLive && <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "10px", color: C.muted, marginTop: "3px" }}>Demo data · Connect live API for real prices</div>}
+          {!isLive && <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "10px", color: C.muted, marginTop: "3px" }}>Demo data · Sign up for live prices</div>}
         </div>
 
         <div style={{ background: C.panel, border: "1px solid " + C.border, borderRadius: "10px", padding: "14px 16px 12px", marginBottom: "10px" }}>
@@ -754,34 +755,44 @@ function DetailPage({ ticker, onBack, isDemo, onAuth, prefetchedAnalysis }) {
             </div>
           ) : (
             <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div>
-                <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.3em", textTransform: "uppercase", color: C.accentDim, marginBottom: "6px" }}>Overview</div>
-                <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.text, lineHeight: "1.75" }}>{a.summary}</div>
-              </div>
-              <hr style={{ border: "none", borderTop: "1px solid " + C.border }} />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                <div>
-                  <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.3em", textTransform: "uppercase", color: "#3ecf8e88", marginBottom: "8px" }}>Opportunities</div>
-                  <ul style={{ margin: 0, padding: "0 0 0 13px", display: "flex", flexDirection: "column", gap: "6px" }}>
-                    {(a.opps || a.opportunities || []).map((o, i) => <li key={i} style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", lineHeight: "1.6", color: C.text }}>{o}</li>)}
-                  </ul>
+              {isDemo ? (
+                <div style={{ textAlign: "center", padding: "20px 0" }}>
+                  <Lock style={{ width: "24px", height: "24px", color: C.accentDim, margin: "0 auto 10px" }} />
+                  <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.muted, marginBottom: "14px" }}>Sign up free to unlock AI analysis</div>
+                  <button onClick={() => onAuth("analyse")} style={{ background: C.accent, color: "#0a0c10", border: "none", borderRadius: "6px", padding: "10px 20px", fontSize: "11px", letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", fontFamily: "DM Sans, sans-serif", fontWeight: 700 }}>Get Full Analysis</button>
                 </div>
-                <div>
-                  <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.3em", textTransform: "uppercase", color: "#f8717188", marginBottom: "8px" }}>Risks</div>
-                  <ul style={{ margin: 0, padding: "0 0 0 13px", display: "flex", flexDirection: "column", gap: "6px" }}>
-                    {(a.risks || []).map((r, i) => <li key={i} style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", lineHeight: "1.6", color: C.text }}>{r}</li>)}
-                  </ul>
-                </div>
-              </div>
-              <hr style={{ border: "none", borderTop: "1px solid " + C.border }} />
-              <div>
-                <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.3em", textTransform: "uppercase", color: C.accentDim, marginBottom: "6px" }}>Key Metrics</div>
-                <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.text, lineHeight: "1.75" }}>{a.metrics || a.keyMetrics}</div>
-              </div>
-              <div style={{ background: C.bgAlt, border: "1px solid " + C.accent + "22", borderRadius: "7px", padding: "13px 15px" }}>
-                <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.3em", textTransform: "uppercase", color: C.accentDim, marginBottom: "5px" }}>Bottom Line</div>
-                <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.accent, fontStyle: "italic", lineHeight: "1.7" }}>{a.bottom || a.bottomLine}</div>
-              </div>
+              ) : (
+                <>
+                  <div>
+                    <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.3em", textTransform: "uppercase", color: C.accentDim, marginBottom: "6px" }}>Overview</div>
+                    <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.text, lineHeight: "1.75" }}>{a.summary}</div>
+                  </div>
+                  <hr style={{ border: "none", borderTop: "1px solid " + C.border }} />
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                    <div>
+                      <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.3em", textTransform: "uppercase", color: "#3ecf8e88", marginBottom: "8px" }}>Opportunities</div>
+                      <ul style={{ margin: 0, padding: "0 0 0 13px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                        {(a.opps || a.opportunities || []).map((o, i) => <li key={i} style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", lineHeight: "1.6", color: C.text }}>{o}</li>)}
+                      </ul>
+                    </div>
+                    <div>
+                      <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.3em", textTransform: "uppercase", color: "#f8717188", marginBottom: "8px" }}>Risks</div>
+                      <ul style={{ margin: 0, padding: "0 0 0 13px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                        {(a.risks || []).map((r, i) => <li key={i} style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", lineHeight: "1.6", color: C.text }}>{r}</li>)}
+                      </ul>
+                    </div>
+                  </div>
+                  <hr style={{ border: "none", borderTop: "1px solid " + C.border }} />
+                  <div>
+                    <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.3em", textTransform: "uppercase", color: C.accentDim, marginBottom: "6px" }}>Key Metrics</div>
+                    <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.text, lineHeight: "1.75" }}>{a.metrics || a.keyMetrics}</div>
+                  </div>
+                  <div style={{ background: C.bgAlt, border: "1px solid " + C.accent + "22", borderRadius: "7px", padding: "13px 15px" }}>
+                    <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.3em", textTransform: "uppercase", color: C.accentDim, marginBottom: "5px" }}>Bottom Line</div>
+                    <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.accent, fontStyle: "italic", lineHeight: "1.7" }}>{a.bottom || a.bottomLine}</div>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -812,7 +823,7 @@ export default function App() {
   const [isDemo, setIsDemo] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [modalTrigger, setModalTrigger] = useState("default");
-  const [watchlist, setWatchlist] = useState(DEFAULT_WL);
+  const [watchlist, setWatchlist] = useState(["AAPL", "NVDA", "NESN", "MSFT"]);
   const [alerts, setAlerts] = useState({});
   const [toast, setToast] = useState(null);
   const [addInput, setAddInput] = useState("");
@@ -826,11 +837,15 @@ export default function App() {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState(null);
   const [analysedTicker, setAnalysedTicker] = useState(null);
-  const [usedCount, setUsedCount] = useState(4);
+  const [usedCount, setUsedCount] = useState(0);
   const wRef = useRef(null);
   const addRef = useRef(null);
 
   useEffect(() => {
+    // localStorage for usage counter
+    const stored = parseInt(localStorage.getItem("brevio_used") || "0", 10);
+    setUsedCount(stored);
+    // mobile detection
     setIsMobile(window.innerWidth < 640);
     const fn = () => setIsMobile(window.innerWidth < 640);
     window.addEventListener("resize", fn);
@@ -913,7 +928,11 @@ export default function App() {
       const data = await res.json();
       if (data && data.verdict) {
         setAnalysisResult({ ...data, ticker: t });
-        setUsedCount(u => u + 1);
+        setUsedCount(u => {
+          const next = u + 1;
+          localStorage.setItem("brevio_used", next);
+          return next;
+        });
       } else {
         setAnalysisError(data.error || "Analysis failed. Try again.");
       }
@@ -939,7 +958,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text }}>
-      <link rel="stylesheet" href={"https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap"} />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" />
       <style>{STYLES}</style>
 
       {page === "detail" && selected && <DetailPage ticker={selected} onBack={goBack} isDemo={isDemo} onAuth={auth} prefetchedAnalysis={prefetchedAnalysis} />}
@@ -966,10 +985,10 @@ export default function App() {
               {!isDemo && (
                 <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
                   <div style={{ width: "60px", height: "3px", background: C.border, borderRadius: "2px", overflow: "hidden" }}>
-                    <div style={{ width: Math.min((usedCount/300)*100, 100) + "%", height: "100%", background: C.green, borderRadius: "2px" }} />
+                    <div style={{ width: Math.min((usedCount / 300) * 100, 100) + "%", height: "100%", background: usedCount > 250 ? C.red : C.green, borderRadius: "2px", transition: "width 0.3s ease" }} />
                   </div>
                   <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "11px", color: C.muted }}>
-                    <span style={{ color: C.green, fontWeight: 500 }}>{usedCount}</span>/300
+                    <span style={{ color: usedCount > 250 ? C.red : C.green, fontWeight: 500 }}>{usedCount}</span>/300
                   </span>
                 </div>
               )}
@@ -993,7 +1012,6 @@ export default function App() {
               <p style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.muted }}>{isDemo ? "Explore a live preview. Tap any card to open the full analysis." : "Your watchlist is up to date. Tap any card for the full analysis."}</p>
             </div>
 
-            {/* Search + Analyse */}
             <div style={{ marginBottom: "12px" }} ref={wRef}>
               <div style={{ position: "relative" }}>
                 <div style={{ display: "flex", gap: "8px", background: C.panel, border: "1px solid " + (showSug ? C.accent + "44" : C.borderLight), borderRadius: showSug ? "8px 8px 0 0" : "8px", padding: "9px 12px", transition: "border-color 0.2s" }}>
@@ -1052,7 +1070,6 @@ export default function App() {
               )}
             </div>
 
-            {/* Watchlist header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "10px", letterSpacing: "0.3em", textTransform: "uppercase", color: C.accentDim }}>{isDemo ? "Demo Watchlist" : "Your Watchlist"}</span>
@@ -1069,7 +1086,6 @@ export default function App() {
               {watchlist.map(t => <WatchCard key={t} ticker={t} onOpen={openDetail} alertOn={!!alerts[t]} onToggleAlert={toggleAlert} onRemove={tick => setWatchlist(p => p.filter(x => x !== tick))} isDemo={isDemo} onAuth={auth} />)}
             </div>
 
-            {/* Add to watchlist with autocomplete */}
             <div style={{ position: "relative" }} ref={addRef}>
               <div style={{ display: "flex", gap: "8px" }}>
                 <input
