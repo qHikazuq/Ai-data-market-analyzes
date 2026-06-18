@@ -6,6 +6,8 @@ const supabase = createClient(
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFyampmY2dneWZ0Z29ncG92cWtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMjg4MzUsImV4cCI6MjA5MjgwNDgzNX0.AFIAtGSUzS-P4HJAMS-6Gab5rMh4NUtC82VYRipzMnE"
 );
 
+export const config = { ssr: false };
+
 const C = {
   bg: "#0a0c10", bgAlt: "#0d0f14", panel: "#111318",
   border: "#1e2330", borderLight: "#252a38",
