@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, TrendingUp, TrendingDown, Minus, Bell, Settings, Plus, X, RefreshCw, Lock, ArrowRight, Eye, ArrowLeft, Star, Share2 } from "lucide-react";
+import { Search, TrendingUp, TrendingDown, Minus, Bell, Settings, Plus, X, RefreshCw, Lock, ArrowRight, Eye, ArrowLeft, Star, Share2, LogOut, Users, BarChart2, Activity } from "lucide-react";
+import { supabase } from "../lib/supabase";
 
 const C = {
   bg: "#0a0c10", bgAlt: "#0d0f14", panel: "#111318",
@@ -45,7 +46,6 @@ const TICKER_DB = [
   { ticker: "SILVER", name: "Silver Spot", type: "Commodity" },
 ];
 
-// Tickers supported by our /api/quote route (server-side Finnhub)
 const LIVE_TICKERS = [
   "AAPL","NVDA","MSFT","AMZN","GOOGL","META","TSLA","NFLX","AMD",
   "JPM","V","NKE","DIS",
@@ -67,7 +67,6 @@ function genCandles(base, count, vol, trend) {
   return out;
 }
 
-// Fallback static data (only used if live fetch fails)
 const PD = {
   AAPL: { price: 296.52, change: 1.20, pct: 0.41, h52: 317.40, l52: 195.07, cap: "4.3T", vol: "56.8M", pe: "35.8", div: "0.52%", c1D: genCandles(295,78,0.003,0.02), c30D: genCandles(275,30,0.015,0.04), c1Y: genCandles(210,52,0.025,0.06) },
   NVDA: { price: 135.50, change: 2.10, pct: 1.57, h52: 153.13, l52: 86.02, cap: "3.3T", vol: "198.4M", pe: "38.2", div: "0.03%", c1D: genCandles(133,78,0.005,0.03), c30D: genCandles(120,30,0.025,0.06), c1Y: genCandles(90,52,0.04,0.1) },
@@ -97,6 +96,8 @@ const PD = {
 };
 
 const TFS = ["1D", "30D", "1Y"];
+const FREE_LIMIT = 5;
+const PRO_LIMIT = 300;
 
 // ─── LIVE PRICE HOOK ──────────────────────────────────────────────────────────
 function useLivePrice(ticker) {
@@ -258,20 +259,15 @@ function BigChart({ candles, height, alertLines, trendLines, notes, activeTool, 
     <div ref={ref} style={{ width: "100%", position: "relative", userSelect: "none" }}>
       <svg ref={svgRef} width={w} height={height}
         style={{ display: "block", touchAction: "none" }}
-        onClick={onClick}
-        onMouseMove={onMove}
-        onMouseUp={onUp}
+        onClick={onClick} onMouseMove={onMove} onMouseUp={onUp}
         onMouseLeave={() => { setHY(null); setHX(null); onUp(); }}
-        onTouchMove={onMove}
-        onTouchEnd={onUp}>
-
+        onTouchMove={onMove} onTouchEnd={onUp}>
         {mids.map((p, i) => (
           <g key={i}>
             <line x1={pad.l} y1={toY(p)} x2={w-pad.r} y2={toY(p)} stroke={C.border} strokeWidth="0.5" strokeDasharray="3,4" />
             <text x={w-2} y={toY(p)-2} textAnchor="end" fill={C.muted} fontSize="8" fontFamily="DM Sans, sans-serif">{p > 100 ? p.toFixed(0) : p.toFixed(2)}</text>
           </g>
         ))}
-
         {candles.map((c, i) => {
           const up = c.close >= c.open;
           const col = up ? C.green : C.red;
@@ -286,14 +282,12 @@ function BigChart({ candles, height, alertLines, trendLines, notes, activeTool, 
             </g>
           );
         })}
-
         {alertLines.map((al) => {
           const y = toY(al.price);
           if (y < pad.t - 5 || y > height - pad.b + 5) return null;
           return (
             <g key={al.id}>
-              <line x1={pad.l} y1={y} x2={w-pad.r} y2={y} stroke="transparent" strokeWidth="18" style={{ cursor: "ns-resize" }}
-                onMouseDown={e => onDragStart(e, "alert", al.id)} onTouchStart={e => onDragStart(e, "alert", al.id)} />
+              <line x1={pad.l} y1={y} x2={w-pad.r} y2={y} stroke="transparent" strokeWidth="18" style={{ cursor: "ns-resize" }} onMouseDown={e => onDragStart(e, "alert", al.id)} onTouchStart={e => onDragStart(e, "alert", al.id)} />
               <line x1={pad.l} y1={y} x2={w-pad.r} y2={y} stroke={C.accent} strokeWidth="1.2" strokeDasharray="5,4" style={{ pointerEvents: "none" }} />
               <rect x={w-pad.r} y={y-9} width={pad.r-2} height={16} fill={C.accent} rx="2" style={{ pointerEvents: "none" }} />
               <text x={w-pad.r+3} y={y+4} fill="#0a0c10" fontSize="8" fontFamily="DM Sans, sans-serif" fontWeight="600" style={{ pointerEvents: "none" }}>{al.price > 100 ? al.price.toFixed(0) : al.price.toFixed(2)}</text>
@@ -301,32 +295,27 @@ function BigChart({ candles, height, alertLines, trendLines, notes, activeTool, 
             </g>
           );
         })}
-
         {trendLines.map((tl) => {
           const mx = (tl.x1+tl.x2)/2, my = (tl.y1+tl.y2)/2;
           return (
             <g key={tl.id}>
-              <line x1={tl.x1} y1={tl.y1} x2={tl.x2} y2={tl.y2} stroke="transparent" strokeWidth="18" style={{ cursor: "move" }}
-                onMouseDown={e => onDragStart(e, "trend", tl.id)} onTouchStart={e => onDragStart(e, "trend", tl.id)} />
+              <line x1={tl.x1} y1={tl.y1} x2={tl.x2} y2={tl.y2} stroke="transparent" strokeWidth="18" style={{ cursor: "move" }} onMouseDown={e => onDragStart(e, "trend", tl.id)} onTouchStart={e => onDragStart(e, "trend", tl.id)} />
               <line x1={tl.x1} y1={tl.y1} x2={tl.x2} y2={tl.y2} stroke="#a78bfa" strokeWidth="1.5" strokeOpacity="0.85" style={{ pointerEvents: "none" }} />
               <DelBtn cx={mx} cy={my} color="#a78bfa" onDel={() => onDeleteTrend(tl.id)} />
             </g>
           );
         })}
-
         {notes.map((n) => {
           const y = toY(n.price);
           return (
             <g key={n.id}>
-              <circle cx={n.x} cy={y} r="14" fill="transparent" style={{ cursor: "move" }}
-                onMouseDown={e => onDragStart(e, "note", n.id)} onTouchStart={e => onDragStart(e, "note", n.id)} />
+              <circle cx={n.x} cy={y} r="14" fill="transparent" style={{ cursor: "move" }} onMouseDown={e => onDragStart(e, "note", n.id)} onTouchStart={e => onDragStart(e, "note", n.id)} />
               <circle cx={n.x} cy={y} r="7" fill="#f59e0b" fillOpacity="0.9" style={{ pointerEvents: "none" }} />
               <text x={n.x} y={y+4} textAnchor="middle" fill="#0a0c10" fontSize="9" fontWeight="700" style={{ pointerEvents: "none" }}>N</text>
               <DelBtn cx={n.x+12} cy={y-10} color="#f59e0b" onDel={() => onDeleteNote(n.id)} />
             </g>
           );
         })}
-
         {hY !== null && activeTool !== "none" && !drag.current && (
           <g style={{ pointerEvents: "none" }}>
             <line x1={pad.l} y1={hY} x2={w-pad.r} y2={hY} stroke={C.accent} strokeWidth="0.6" strokeDasharray="3,3" strokeOpacity="0.6" />
@@ -336,7 +325,6 @@ function BigChart({ candles, height, alertLines, trendLines, notes, activeTool, 
           </g>
         )}
       </svg>
-
       {pendingNote && (
         <div style={{ position: "absolute", top: Math.max(0, pendingNote.y-60), left: Math.min(pendingNote.x, w-210), background: C.panel, border: "1px solid " + C.accent + "66", borderRadius: "7px", padding: "10px 12px", zIndex: 10, boxShadow: "0 4px 20px #00000088", display: "flex", gap: "6px" }}>
           <input value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Add note..." autoFocus
@@ -365,6 +353,204 @@ function VerdictBadge({ verdict, large }) {
   );
 }
 
+// ─── AUTH MODAL ───────────────────────────────────────────────────────────────
+function AuthModal({ onClose, onSuccess, trigger }) {
+  const [mode, setMode] = useState("signup");
+  const [email, setEmail] = useState("");
+  const [pw, setPw] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const msgs = {
+    analyse: "Sign up free to run live AI analyses on any asset.",
+    add: "Create a free account to build your personal watchlist.",
+    alert: "Sign up to enable price alerts.",
+    default: "Sign up free to unlock the full Brevio experience.",
+  };
+
+  const handle = async () => {
+    setError(""); setSuccess(""); setLoading(true);
+    try {
+      if (mode === "signup") {
+        const { error } = await supabase.auth.signUp({ email, password: pw });
+        if (error) throw error;
+        setSuccess("Check your email to confirm your account!");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password: pw });
+        if (error) throw error;
+        onSuccess();
+      }
+    } catch (e) {
+      setError(e.message);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
+      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "#00000088", backdropFilter: "blur(6px)" }} />
+      <div style={{ position: "relative", background: C.panel, border: "1px solid " + C.borderLight, borderRadius: "14px", padding: "32px 28px", width: "100%", maxWidth: "380px", boxShadow: "0 32px 80px #000000aa", animation: "fadeUp 0.25s ease" }}>
+        <button onClick={onClose} style={{ position: "absolute", top: "16px", right: "16px", background: "transparent", border: "none", cursor: "pointer", color: C.muted }}><X style={{ width: "16px", height: "16px" }} /></button>
+        <h2 style={{ fontFamily: "Playfair Display, serif", fontSize: "22px", fontWeight: 500, color: C.text, marginBottom: "8px" }}>{mode === "signup" ? "Create your free account" : "Welcome back"}</h2>
+        <p style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.muted, lineHeight: "1.6", marginBottom: "24px" }}>{msgs[trigger] || msgs.default}</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px" }}>
+          <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address" type="email"
+            style={{ background: C.bgAlt, border: "1px solid " + C.border, borderRadius: "6px", padding: "11px 14px", color: C.text, fontSize: "14px", fontFamily: "DM Sans, sans-serif", outline: "none" }} />
+          <input value={pw} onChange={e => setPw(e.target.value)} placeholder="Password" type="password"
+            onKeyDown={e => e.key === "Enter" && handle()}
+            style={{ background: C.bgAlt, border: "1px solid " + C.border, borderRadius: "6px", padding: "11px 14px", color: C.text, fontSize: "14px", fontFamily: "DM Sans, sans-serif", outline: "none" }} />
+        </div>
+        {error && <div style={{ marginBottom: "12px", padding: "8px 12px", background: "#1a0a0a", border: "1px solid " + C.red + "44", borderRadius: "5px", fontFamily: "DM Sans, sans-serif", fontSize: "12px", color: C.red }}>{error}</div>}
+        {success && <div style={{ marginBottom: "12px", padding: "8px 12px", background: "#0f2e1e", border: "1px solid " + C.green + "44", borderRadius: "5px", fontFamily: "DM Sans, sans-serif", fontSize: "12px", color: C.green }}>{success}</div>}
+        <button onClick={handle} disabled={loading}
+          style={{ width: "100%", background: loading ? C.accentDim : C.accent, color: "#0a0c10", border: "none", borderRadius: "6px", padding: "12px", fontSize: "12px", letterSpacing: "0.14em", textTransform: "uppercase", cursor: loading ? "not-allowed" : "pointer", fontFamily: "DM Sans, sans-serif", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", marginBottom: "16px" }}>
+          {loading ? "..." : mode === "signup" ? "Create Free Account" : "Log In"} {!loading && <ArrowRight style={{ width: "14px", height: "14px" }} />}
+        </button>
+        {mode === "signup" && (
+          <div style={{ display: "flex", gap: "12px", justifyContent: "center", marginBottom: "16px", flexWrap: "wrap" }}>
+            {["No credit card", "5 free analyses", "Cancel anytime"].map((t, i) => (
+              <span key={i} style={{ fontFamily: "DM Sans, sans-serif", fontSize: "10px", color: C.muted, display: "flex", alignItems: "center", gap: "4px" }}>
+                <span style={{ color: C.green, fontSize: "9px" }}>✓</span> {t}
+              </span>
+            ))}
+          </div>
+        )}
+        <div style={{ textAlign: "center" }}>
+          <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", color: C.muted }}>{mode === "signup" ? "Already have an account? " : "Don't have an account? "}</span>
+          <button onClick={() => { setMode(mode === "signup" ? "login" : "signup"); setError(""); setSuccess(""); }}
+            style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "DM Sans, sans-serif", fontSize: "12px", color: C.accent, textDecoration: "underline" }}>
+            {mode === "signup" ? "Log in" : "Sign up free"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ADMIN DASHBOARD ──────────────────────────────────────────────────────────
+function AdminDashboard({ onClose }) {
+  const [stats, setStats] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [topTickers, setTopTickers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      const [profilesRes, analysesRes] = await Promise.all([
+        supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+        supabase.from("analyses_log").select("*").order("created_at", { ascending: false }),
+      ]);
+
+      const profiles = profilesRes.data || [];
+      const analyses = analysesRes.data || [];
+
+      const now = new Date();
+      const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+      const todayStart = new Date(now.setHours(0,0,0,0));
+
+      const newThisWeek = profiles.filter(p => new Date(p.created_at) > weekAgo).length;
+      const analysesToday = analyses.filter(a => new Date(a.created_at) > todayStart).length;
+      const analysesThisWeek = analyses.filter(a => new Date(a.created_at) > weekAgo).length;
+
+      const tickerCount = {};
+      analyses.forEach(a => { tickerCount[a.ticker] = (tickerCount[a.ticker] || 0) + 1; });
+      const top = Object.entries(tickerCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+      setStats({ totalUsers: profiles.length, newThisWeek, analysesToday, analysesThisWeek, totalAnalyses: analyses.length, estimatedCost: (analyses.length * 0.01).toFixed(2) });
+      setUsers(profiles.slice(0, 10));
+      setTopTickers(top);
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  const statCards = stats ? [
+    { label: "Total Users", value: stats.totalUsers, icon: Users, color: C.accent },
+    { label: "New This Week", value: stats.newThisWeek, icon: TrendingUp, color: C.green },
+    { label: "Analyses Today", value: stats.analysesToday, icon: Activity, color: "#a78bfa" },
+    { label: "Analyses This Week", value: stats.analysesThisWeek, icon: BarChart2, color: C.green },
+    { label: "Total Analyses", value: stats.totalAnalyses, icon: BarChart2, color: C.accent },
+    { label: "Est. API Cost", value: "$" + stats.estimatedCost, icon: Activity, color: C.red },
+  ] : [];
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 500, background: C.bg, overflowY: "auto" }}>
+      <div style={{ position: "sticky", top: 0, zIndex: 10, height: "56px", padding: "0 20px", display: "flex", alignItems: "center", justifyContent: "space-between", background: C.bg + "f8", backdropFilter: "blur(16px)", borderBottom: "1px solid " + C.border }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <span style={{ fontFamily: "Playfair Display, serif", fontSize: "18px", color: C.accent }}>Brevio</span>
+          <div style={{ background: C.accent + "22", border: "1px solid " + C.accent + "44", borderRadius: "4px", padding: "2px 8px" }}>
+            <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", color: C.accent, letterSpacing: "0.2em", textTransform: "uppercase" }}>Admin</span>
+          </div>
+        </div>
+        <button onClick={onClose} style={{ display: "flex", alignItems: "center", gap: "6px", background: "transparent", border: "1px solid " + C.border, borderRadius: "5px", padding: "6px 12px", cursor: "pointer", color: C.muted, fontFamily: "DM Sans, sans-serif", fontSize: "12px" }}>
+          <ArrowLeft style={{ width: "12px", height: "12px" }} /> Back to Dashboard
+        </button>
+      </div>
+
+      <div style={{ maxWidth: "900px", margin: "0 auto", padding: "28px 20px 48px" }}>
+        <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "26px", color: C.text, marginBottom: "6px" }}>Admin Overview</h1>
+        <p style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.muted, marginBottom: "28px" }}>Real-time metrics for Brevio.</p>
+
+        {loading ? (
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", color: C.muted, fontFamily: "DM Sans, sans-serif", fontSize: "13px" }}>
+            <div style={{ width: "16px", height: "16px", border: "2px solid " + C.border, borderTop: "2px solid " + C.accent, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+            Loading data...
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", marginBottom: "24px" }}>
+              {statCards.map((s, i) => (
+                <div key={i} style={{ background: C.panel, border: "1px solid " + C.border, borderRadius: "10px", padding: "16px 18px" }}>
+                  <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.25em", textTransform: "uppercase", color: C.muted, marginBottom: "8px" }}>{s.label}</div>
+                  <div style={{ fontFamily: "Playfair Display, serif", fontSize: "28px", color: s.color, fontWeight: 500 }}>{s.value}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
+              <div style={{ background: C.panel, border: "1px solid " + C.border, borderRadius: "10px", padding: "18px" }}>
+                <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.25em", textTransform: "uppercase", color: C.accentDim, marginBottom: "14px" }}>Top Analysed Tickers</div>
+                {topTickers.length === 0 ? (
+                  <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", color: C.muted }}>No analyses yet.</div>
+                ) : topTickers.map(([ticker, count], i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "11px", color: C.muted, width: "16px" }}>#{i+1}</span>
+                      <span style={{ fontFamily: "Playfair Display, serif", fontSize: "14px", color: C.accent }}>{ticker}</span>
+                    </div>
+                    <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", color: C.text }}>{count}x</span>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ background: C.panel, border: "1px solid " + C.border, borderRadius: "10px", padding: "18px" }}>
+                <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.25em", textTransform: "uppercase", color: C.accentDim, marginBottom: "14px" }}>Recent Users</div>
+                {users.length === 0 ? (
+                  <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", color: C.muted }}>No users yet.</div>
+                ) : users.slice(0, 6).map((u, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: C.accent + "22", border: "1px solid " + C.accent + "44", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "10px", color: C.accent }}>{u.email?.[0]?.toUpperCase()}</span>
+                      </div>
+                      <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "11px", color: C.text }}>{u.email}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      {u.is_admin && <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "8px", color: C.accent, background: C.accent + "18", padding: "1px 6px", borderRadius: "3px" }}>Admin</span>}
+                      <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", color: C.muted, background: C.panel, border: "1px solid " + C.border, padding: "1px 6px", borderRadius: "3px" }}>{u.plan}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── ANALYSIS RESULT CARD ─────────────────────────────────────────────────────
 function AnalysisCard({ result, watchlist, onClose, onAdd, onOpenDetail }) {
   const v = result.verdict;
@@ -383,9 +569,7 @@ function AnalysisCard({ result, watchlist, onClose, onAdd, onOpenDetail }) {
             <VI style={{ width: "11px", height: "11px", color: vc }} />
             <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "10px", color: vc, letterSpacing: "0.14em", fontWeight: 600 }}>{v}</span>
           </div>
-          <button onClick={onClose} style={{ background: "transparent", border: "none", cursor: "pointer", color: C.muted }}>
-            <X style={{ width: "13px", height: "13px" }} />
-          </button>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", cursor: "pointer", color: C.muted }}><X style={{ width: "13px", height: "13px" }} /></button>
         </div>
       </div>
       <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -423,58 +607,16 @@ function AnalysisCard({ result, watchlist, onClose, onAdd, onOpenDetail }) {
   );
 }
 
-// ─── SIGNUP MODAL ─────────────────────────────────────────────────────────────
-function SignupModal({ onClose, onSignup, trigger }) {
-  const [mode, setMode] = useState("signup");
-  const [email, setEmail] = useState("");
-  const [pw, setPw] = useState("");
-  const msgs = { analyse: "Sign up free to run live AI analyses on any asset.", add: "Create a free account to build your personal watchlist.", alert: "Sign up to enable price alerts.", default: "Sign up free to unlock the full Brevio experience." };
-  return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
-      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "#00000088", backdropFilter: "blur(6px)" }} />
-      <div style={{ position: "relative", background: C.panel, border: "1px solid " + C.borderLight, borderRadius: "14px", padding: "32px 28px", width: "100%", maxWidth: "380px", boxShadow: "0 32px 80px #000000aa", animation: "fadeUp 0.25s ease" }}>
-        <button onClick={onClose} style={{ position: "absolute", top: "16px", right: "16px", background: "transparent", border: "none", cursor: "pointer", color: C.muted }}><X style={{ width: "16px", height: "16px" }} /></button>
-        <h2 style={{ fontFamily: "Playfair Display, serif", fontSize: "22px", fontWeight: 500, color: C.text, marginBottom: "8px" }}>{mode === "signup" ? "Create your free account" : "Welcome back"}</h2>
-        <p style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.muted, lineHeight: "1.6", marginBottom: "24px" }}>{msgs[trigger] || msgs.default}</p>
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px" }}>
-          <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address" type="email" style={{ background: C.bgAlt, border: "1px solid " + C.border, borderRadius: "6px", padding: "11px 14px", color: C.text, fontSize: "14px", fontFamily: "DM Sans, sans-serif", outline: "none" }} />
-          <input value={pw} onChange={e => setPw(e.target.value)} placeholder="Password" type="password" style={{ background: C.bgAlt, border: "1px solid " + C.border, borderRadius: "6px", padding: "11px 14px", color: C.text, fontSize: "14px", fontFamily: "DM Sans, sans-serif", outline: "none" }} />
-        </div>
-        <button onClick={onSignup} style={{ width: "100%", background: C.accent, color: "#0a0c10", border: "none", borderRadius: "6px", padding: "12px", fontSize: "12px", letterSpacing: "0.14em", textTransform: "uppercase", cursor: "pointer", fontFamily: "DM Sans, sans-serif", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", marginBottom: "16px" }}>
-          {mode === "signup" ? "Create Free Account" : "Log In"} <ArrowRight style={{ width: "14px", height: "14px" }} />
-        </button>
-        {mode === "signup" && (
-          <div style={{ display: "flex", gap: "12px", justifyContent: "center", marginBottom: "16px", flexWrap: "wrap" }}>
-            {["No credit card", "5 free analyses", "Cancel anytime"].map((t, i) => (
-              <span key={i} style={{ fontFamily: "DM Sans, sans-serif", fontSize: "10px", color: C.muted, display: "flex", alignItems: "center", gap: "4px" }}>
-                <span style={{ color: C.green, fontSize: "9px" }}>✓</span> {t}
-              </span>
-            ))}
-          </div>
-        )}
-        <div style={{ textAlign: "center" }}>
-          <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", color: C.muted }}>{mode === "signup" ? "Already have an account? " : "Don't have an account? "}</span>
-          <button onClick={() => setMode(mode === "signup" ? "login" : "signup")} style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "DM Sans, sans-serif", fontSize: "12px", color: C.accent, textDecoration: "underline" }}>{mode === "signup" ? "Log in" : "Sign up free"}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── WATCHLIST CARD ───────────────────────────────────────────────────────────
 function WatchCard({ ticker, onOpen, alertOn, onToggleAlert, onRemove, isDemo, onAuth }) {
   const [tf, setTf] = useState("30D");
   const p = PD[ticker] || PD.AAPL;
   const { quote, loading, isLive } = useLivePrice(ticker);
-
   const displayPrice = quote ? quote.price : p.price;
   const displayPct = quote ? quote.pct : p.pct;
   const up = displayPct >= 0;
   const pc = up ? C.green : C.red;
-
-  // Dynamic verdict based on real price movement
   const verdict = displayPct > 0.5 ? "BULLISH" : displayPct < -0.5 ? "BEARISH" : "NEUTRAL";
-
   const candles = tf === "1D" ? p.c1D : tf === "1Y" ? p.c1Y : p.c30D;
 
   return (
@@ -486,9 +628,7 @@ function WatchCard({ ticker, onOpen, alertOn, onToggleAlert, onRemove, isDemo, o
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
           <div>
             <div style={{ fontFamily: "Playfair Display, serif", fontSize: "18px", color: C.accent, letterSpacing: "0.06em", lineHeight: 1 }}>{ticker}</div>
-            <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "10px", color: C.muted, marginTop: "2px", fontStyle: "italic" }}>
-              {TICKER_DB.find(t => t.ticker === ticker)?.name || ticker}
-            </div>
+            <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "10px", color: C.muted, marginTop: "2px", fontStyle: "italic" }}>{TICKER_DB.find(t => t.ticker === ticker)?.name || ticker}</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
             <VerdictBadge verdict={verdict} />
@@ -507,9 +647,7 @@ function WatchCard({ ticker, onOpen, alertOn, onToggleAlert, onRemove, isDemo, o
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "baseline", gap: "7px", marginBottom: "4px" }}>
-          {loading ? (
-            <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.muted }}>Loading...</span>
-          ) : (
+          {loading ? <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.muted }}>Loading...</span> : (
             <>
               <span style={{ fontFamily: "Playfair Display, serif", fontSize: "20px", color: C.text, fontWeight: 500 }}>${displayPrice.toFixed(2)}</span>
               <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "11px", color: pc, fontWeight: 500 }}>{up ? "+" : ""}{displayPct.toFixed(2)}%</span>
@@ -542,7 +680,7 @@ function WatchCard({ ticker, onOpen, alertOn, onToggleAlert, onRemove, isDemo, o
 }
 
 // ─── DETAIL PAGE ──────────────────────────────────────────────────────────────
-function DetailPage({ ticker, onBack, isDemo, onAuth, prefetchedAnalysis }) {
+function DetailPage({ ticker, onBack, isDemo, onAuth, prefetchedAnalysis, user, profile }) {
   const [tf, setTf] = useState("30D");
   const [saved, setSaved] = useState(false);
   const [activeTool, setActiveTool] = useState("none");
@@ -567,18 +705,21 @@ function DetailPage({ ticker, onBack, isDemo, onAuth, prefetchedAnalysis }) {
   useEffect(() => {
     if (prefetchedAnalysis || isDemo) { setAiLoading(false); return; }
     setAiLoading(true);
-    fetch("/api/analyse", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ticker }),
-    })
+    fetch("/api/analyse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker }) })
       .then(r => r.json())
-      .then(data => { if (data && data.verdict) setAiAnalysis(data); })
+      .then(data => {
+        if (data && data.verdict) {
+          setAiAnalysis(data);
+          if (user) {
+            supabase.from("analyses_log").insert({ user_id: user.id, ticker }).then(() => {});
+          }
+        }
+      })
       .catch(() => {})
       .finally(() => setAiLoading(false));
   }, [ticker]);
 
-  const a = aiAnalysis || { verdict: "NEUTRAL", company: ticker, summary: "Sign up to unlock AI analysis.", opps: [], risks: [], metrics: "—", bottom: "—" };
+  const a = aiAnalysis || { verdict: "NEUTRAL", company: ticker, summary: "", opps: [], risks: [], metrics: "—", bottom: "—" };
 
   const metrics = [
     { label: "Market Cap", value: p.cap }, { label: "Volume", value: p.vol },
@@ -604,11 +745,13 @@ function DetailPage({ ticker, onBack, isDemo, onAuth, prefetchedAnalysis }) {
   const handleDeleteTrend = (id) => { setTrendLines(prev => prev.filter(t => t.id !== id)); showToast("Trend line removed"); };
   const handleDeleteNote = (id) => { setNotes(prev => prev.filter(n => n.id !== id)); showToast("Note removed"); };
 
+  const limit = profile?.plan === "pro" ? PRO_LIMIT : FREE_LIMIT;
+  const used = profile?.analyses_used || 0;
+
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, animation: "slideIn 0.22s ease" }}>
       <div style={{ position: "sticky", top: 0, zIndex: 100, height: "56px", padding: "0 16px", display: "flex", alignItems: "center", justifyContent: "space-between", background: C.bg + "f8", backdropFilter: "blur(16px)", borderBottom: "1px solid " + C.border }}>
-        <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: "6px", background: "transparent", border: "none", cursor: "pointer", color: C.muted }}
-          onMouseEnter={e => e.currentTarget.style.color = C.text} onMouseLeave={e => e.currentTarget.style.color = C.muted}>
+        <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: "6px", background: "transparent", border: "none", cursor: "pointer", color: C.muted }} onMouseEnter={e => e.currentTarget.style.color = C.text} onMouseLeave={e => e.currentTarget.style.color = C.muted}>
           <ArrowLeft style={{ width: "15px", height: "15px" }} />
           <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px" }}>Watchlist</span>
         </button>
@@ -626,9 +769,7 @@ function DetailPage({ ticker, onBack, isDemo, onAuth, prefetchedAnalysis }) {
       <div style={{ maxWidth: "760px", margin: "0 auto", padding: "20px 16px 48px" }}>
         <div style={{ marginBottom: "20px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-            <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", color: C.muted, fontStyle: "italic" }}>
-              {TICKER_DB.find(t => t.ticker === ticker)?.name || ticker}
-            </div>
+            <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", color: C.muted, fontStyle: "italic" }}>{TICKER_DB.find(t => t.ticker === ticker)?.name || ticker}</div>
             {isLive && (
               <div style={{ display: "flex", alignItems: "center", gap: "4px", background: priceLoading ? C.muted + "18" : C.green + "18", border: "1px solid " + (priceLoading ? C.muted : C.green) + "44", borderRadius: "4px", padding: "2px 7px" }}>
                 <div style={{ width: "5px", height: "5px", borderRadius: "50%", background: priceLoading ? C.muted : C.green, boxShadow: priceLoading ? "none" : "0 0 5px " + C.green, animation: priceLoading ? "none" : "livePulse 2s ease-in-out infinite" }} />
@@ -652,9 +793,7 @@ function DetailPage({ ticker, onBack, isDemo, onAuth, prefetchedAnalysis }) {
             <div style={{ display: "flex", gap: "4px" }}>
               {TFS.map(t => (
                 <button key={t} onClick={() => { setTf(t); setAlertLines([]); setTrendLines([]); setNotes([]); setTrendStart(null); setActiveTool("none"); }}
-                  style={{ background: tf === t ? C.accent + "22" : "transparent", border: "1px solid " + (tf === t ? C.accent + "66" : C.border), borderRadius: "4px", padding: "4px 12px", cursor: "pointer", fontFamily: "DM Sans, sans-serif", fontSize: "11px", color: tf === t ? C.accent : C.muted, letterSpacing: "0.08em", fontWeight: tf === t ? 600 : 400, transition: "all 0.15s" }}>
-                  {t}
-                </button>
+                  style={{ background: tf === t ? C.accent + "22" : "transparent", border: "1px solid " + (tf === t ? C.accent + "66" : C.border), borderRadius: "4px", padding: "4px 12px", cursor: "pointer", fontFamily: "DM Sans, sans-serif", fontSize: "11px", color: tf === t ? C.accent : C.muted, letterSpacing: "0.08em", fontWeight: tf === t ? 600 : 400, transition: "all 0.15s" }}>{t}</button>
               ))}
             </div>
           </div>
@@ -698,21 +837,6 @@ function DetailPage({ ticker, onBack, isDemo, onAuth, prefetchedAnalysis }) {
               {isDemo && <Lock style={{ width: "9px", height: "9px" }} />} Set Alert
             </button>
           </div>
-          {alertLines.length > 0 && (
-            <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "4px" }}>
-              {alertLines.map(al => (
-                <div key={al.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 12px", background: C.accent + "0f", border: "1px solid " + C.accent + "22", borderRadius: "5px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <div style={{ width: "14px", height: "1.5px", background: C.accent }} />
-                    <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", color: C.accent }}>Alert at ${al.price > 100 ? al.price.toFixed(0) : al.price.toFixed(2)}</span>
-                  </div>
-                  <button onClick={() => handleDeleteAlert(al.id)} style={{ background: "transparent", border: "none", cursor: "pointer", color: C.muted }} onMouseEnter={e => e.currentTarget.style.color = C.red} onMouseLeave={e => e.currentTarget.style.color = C.muted}>
-                    <X style={{ width: "11px", height: "11px" }} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1px", background: C.border, borderRadius: "10px", overflow: "hidden", marginBottom: "14px" }}>
@@ -733,9 +857,7 @@ function DetailPage({ ticker, onBack, isDemo, onAuth, prefetchedAnalysis }) {
                   <div style={{ width: "14px", height: "14px", border: "2px solid " + C.border, borderTop: "2px solid " + C.accent, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
                   <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", color: C.muted, fontStyle: "italic" }}>Brevio AI is researching {ticker}...</span>
                 </div>
-              ) : (
-                <VerdictBadge verdict={a.verdict} large />
-              )}
+              ) : <VerdictBadge verdict={a.verdict} large />}
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", color: C.muted, marginBottom: "3px" }}>Powered by</div>
@@ -743,56 +865,47 @@ function DetailPage({ ticker, onBack, isDemo, onAuth, prefetchedAnalysis }) {
               {aiAnalysis && <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "8px", color: C.green, marginTop: "3px", display: "flex", alignItems: "center", gap: "3px", justifyContent: "flex-end" }}><div style={{ width: "4px", height: "4px", borderRadius: "50%", background: C.green }} />Live</div>}
             </div>
           </div>
-
           {aiLoading ? (
             <div style={{ padding: "32px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: "14px" }}>
-              <div style={{ display: "flex", gap: "6px" }}>
-                {[0, 1, 2].map(i => (
-                  <div key={i} style={{ width: "6px", height: "6px", borderRadius: "50%", background: C.accent, opacity: 0.4, animation: "pulse 1.2s ease-in-out " + (i * 0.2) + "s infinite" }} />
-                ))}
-              </div>
+              <div style={{ display: "flex", gap: "6px" }}>{[0,1,2].map(i => <div key={i} style={{ width: "6px", height: "6px", borderRadius: "50%", background: C.accent, opacity: 0.4, animation: "pulse 1.2s ease-in-out " + (i * 0.2) + "s infinite" }} />)}</div>
               <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", color: C.muted, textAlign: "center" }}>Analysing market conditions, recent news, and financial data...</span>
+            </div>
+          ) : isDemo ? (
+            <div style={{ padding: "32px 16px", textAlign: "center" }}>
+              <Lock style={{ width: "24px", height: "24px", color: C.accentDim, margin: "0 auto 10px" }} />
+              <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.muted, marginBottom: "14px" }}>Sign up free to unlock AI analysis</div>
+              <button onClick={() => onAuth("analyse")} style={{ background: C.accent, color: "#0a0c10", border: "none", borderRadius: "6px", padding: "10px 20px", fontSize: "11px", letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", fontFamily: "DM Sans, sans-serif", fontWeight: 700 }}>Get Full Analysis</button>
             </div>
           ) : (
             <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
-              {isDemo ? (
-                <div style={{ textAlign: "center", padding: "20px 0" }}>
-                  <Lock style={{ width: "24px", height: "24px", color: C.accentDim, margin: "0 auto 10px" }} />
-                  <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.muted, marginBottom: "14px" }}>Sign up free to unlock AI analysis</div>
-                  <button onClick={() => onAuth("analyse")} style={{ background: C.accent, color: "#0a0c10", border: "none", borderRadius: "6px", padding: "10px 20px", fontSize: "11px", letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", fontFamily: "DM Sans, sans-serif", fontWeight: 700 }}>Get Full Analysis</button>
+              <div>
+                <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.3em", textTransform: "uppercase", color: C.accentDim, marginBottom: "6px" }}>Overview</div>
+                <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.text, lineHeight: "1.75" }}>{a.summary}</div>
+              </div>
+              <hr style={{ border: "none", borderTop: "1px solid " + C.border }} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                <div>
+                  <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.3em", textTransform: "uppercase", color: "#3ecf8e88", marginBottom: "8px" }}>Opportunities</div>
+                  <ul style={{ margin: 0, padding: "0 0 0 13px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {(a.opps || a.opportunities || []).map((o, i) => <li key={i} style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", lineHeight: "1.6", color: C.text }}>{o}</li>)}
+                  </ul>
                 </div>
-              ) : (
-                <>
-                  <div>
-                    <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.3em", textTransform: "uppercase", color: C.accentDim, marginBottom: "6px" }}>Overview</div>
-                    <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.text, lineHeight: "1.75" }}>{a.summary}</div>
-                  </div>
-                  <hr style={{ border: "none", borderTop: "1px solid " + C.border }} />
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                    <div>
-                      <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.3em", textTransform: "uppercase", color: "#3ecf8e88", marginBottom: "8px" }}>Opportunities</div>
-                      <ul style={{ margin: 0, padding: "0 0 0 13px", display: "flex", flexDirection: "column", gap: "6px" }}>
-                        {(a.opps || a.opportunities || []).map((o, i) => <li key={i} style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", lineHeight: "1.6", color: C.text }}>{o}</li>)}
-                      </ul>
-                    </div>
-                    <div>
-                      <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.3em", textTransform: "uppercase", color: "#f8717188", marginBottom: "8px" }}>Risks</div>
-                      <ul style={{ margin: 0, padding: "0 0 0 13px", display: "flex", flexDirection: "column", gap: "6px" }}>
-                        {(a.risks || []).map((r, i) => <li key={i} style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", lineHeight: "1.6", color: C.text }}>{r}</li>)}
-                      </ul>
-                    </div>
-                  </div>
-                  <hr style={{ border: "none", borderTop: "1px solid " + C.border }} />
-                  <div>
-                    <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.3em", textTransform: "uppercase", color: C.accentDim, marginBottom: "6px" }}>Key Metrics</div>
-                    <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.text, lineHeight: "1.75" }}>{a.metrics || a.keyMetrics}</div>
-                  </div>
-                  <div style={{ background: C.bgAlt, border: "1px solid " + C.accent + "22", borderRadius: "7px", padding: "13px 15px" }}>
-                    <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.3em", textTransform: "uppercase", color: C.accentDim, marginBottom: "5px" }}>Bottom Line</div>
-                    <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.accent, fontStyle: "italic", lineHeight: "1.7" }}>{a.bottom || a.bottomLine}</div>
-                  </div>
-                </>
-              )}
+                <div>
+                  <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.3em", textTransform: "uppercase", color: "#f8717188", marginBottom: "8px" }}>Risks</div>
+                  <ul style={{ margin: 0, padding: "0 0 0 13px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {(a.risks || []).map((r, i) => <li key={i} style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", lineHeight: "1.6", color: C.text }}>{r}</li>)}
+                  </ul>
+                </div>
+              </div>
+              <hr style={{ border: "none", borderTop: "1px solid " + C.border }} />
+              <div>
+                <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.3em", textTransform: "uppercase", color: C.accentDim, marginBottom: "6px" }}>Key Metrics</div>
+                <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.text, lineHeight: "1.75" }}>{a.metrics || a.keyMetrics}</div>
+              </div>
+              <div style={{ background: C.bgAlt, border: "1px solid " + C.accent + "22", borderRadius: "7px", padding: "13px 15px" }}>
+                <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "9px", letterSpacing: "0.3em", textTransform: "uppercase", color: C.accentDim, marginBottom: "5px" }}>Bottom Line</div>
+                <div style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.accent, fontStyle: "italic", lineHeight: "1.7" }}>{a.bottom || a.bottomLine}</div>
+              </div>
             </div>
           )}
         </div>
@@ -820,9 +933,12 @@ export default function App() {
   const [page, setPage] = useState("dashboard");
   const [selected, setSelected] = useState(null);
   const [prefetchedAnalysis, setPrefetchedAnalysis] = useState(null);
-  const [isDemo, setIsDemo] = useState(true);
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [modalTrigger, setModalTrigger] = useState("default");
+  const [showAdmin, setShowAdmin] = useState(false);
   const [watchlist, setWatchlist] = useState(["AAPL", "NVDA", "NESN", "MSFT"]);
   const [alerts, setAlerts] = useState({});
   const [toast, setToast] = useState(null);
@@ -837,20 +953,36 @@ export default function App() {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState(null);
   const [analysedTicker, setAnalysedTicker] = useState(null);
-  const [usedCount, setUsedCount] = useState(0);
   const wRef = useRef(null);
   const addRef = useRef(null);
 
+  const isDemo = !user;
+
   useEffect(() => {
-    // localStorage for usage counter
-    const stored = parseInt(localStorage.getItem("brevio_used") || "0", 10);
-    setUsedCount(stored);
-    // mobile detection
     setIsMobile(window.innerWidth < 640);
     const fn = () => setIsMobile(window.innerWidth < 640);
     window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) loadProfile(session.user.id);
+      else setAuthLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) loadProfile(session.user.id);
+      else { setProfile(null); setAuthLoading(false); }
+    });
+
+    return () => { subscription.unsubscribe(); window.removeEventListener("resize", fn); };
   }, []);
+
+  async function loadProfile(userId) {
+    const { data } = await supabase.from("profiles").select("*").eq("id", userId).single();
+    setProfile(data);
+    setAuthLoading(false);
+  }
 
   useEffect(() => {
     const fn = e => {
@@ -862,30 +994,29 @@ export default function App() {
   }, []);
 
   const auth = t => { setModalTrigger(t); setShowModal(true); };
-  const signup = () => { setIsDemo(false); setShowModal(false); setToast("Welcome to Brevio!"); setTimeout(() => setToast(null), 3000); };
 
-  const openDetail = (t, analysis = null) => {
-    setSelected(t);
-    setPrefetchedAnalysis(analysis);
-    setPage("detail");
+  const logout = async () => {
+    await supabase.auth.signOut();
+    setUser(null); setProfile(null);
+    showToastMsg("Logged out.");
   };
 
+  const showToastMsg = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
+
+  const openDetail = (t, analysis = null) => { setSelected(t); setPrefetchedAnalysis(analysis); setPage("detail"); };
   const goBack = () => { setPage("dashboard"); setSelected(null); setPrefetchedAnalysis(null); };
 
   const toggleAlert = t => {
     const n = !alerts[t];
     setAlerts(p => ({ ...p, [t]: n }));
-    setToast(n ? "Alert enabled for " + t : "Alert disabled for " + t);
-    setTimeout(() => setToast(null), 2500);
+    showToastMsg(n ? "Alert enabled for " + t : "Alert disabled for " + t);
   };
 
   const handleAddInput = val => {
     setAddInput(val.toUpperCase());
     if (!val) { setAddSuggestions([]); setShowAddSug(false); return; }
     const upper = val.toUpperCase();
-    const tickerMatch = TICKER_DB.filter(t => t.ticker.startsWith(upper));
-    const nameMatch = TICKER_DB.filter(t => !t.ticker.startsWith(upper) && t.name.toLowerCase().startsWith(val.toLowerCase()));
-    const f = [...tickerMatch, ...nameMatch].slice(0, 5);
+    const f = [...TICKER_DB.filter(t => t.ticker.startsWith(upper)), ...TICKER_DB.filter(t => !t.ticker.startsWith(upper) && t.name.toLowerCase().startsWith(val.toLowerCase()))].slice(0, 5);
     setAddSuggestions(f); setShowAddSug(f.length > 0);
   };
 
@@ -894,19 +1025,15 @@ export default function App() {
     const t = (tickerOverride || addInput).trim().toUpperCase();
     if (!t || watchlist.includes(t)) { setAddInput(""); setShowAddSug(false); return; }
     setWatchlist(p => [...p, t]);
-    setAddInput("");
-    setShowAddSug(false);
-    setToast(t + " added to watchlist");
-    setTimeout(() => setToast(null), 2000);
+    setAddInput(""); setShowAddSug(false);
+    showToastMsg(t + " added to watchlist");
   };
 
   const handleQ = val => {
     setQuery(val.toUpperCase());
     if (!val) { setSuggestions([]); setShowSug(false); return; }
     const upper = val.toUpperCase();
-    const tickerMatch = TICKER_DB.filter(t => t.ticker.startsWith(upper));
-    const nameMatch = TICKER_DB.filter(t => !t.ticker.startsWith(upper) && t.name.toLowerCase().startsWith(val.toLowerCase()));
-    const f = [...tickerMatch, ...nameMatch].slice(0, 6);
+    const f = [...TICKER_DB.filter(t => t.ticker.startsWith(upper)), ...TICKER_DB.filter(t => !t.ticker.startsWith(upper) && t.name.toLowerCase().startsWith(val.toLowerCase()))].slice(0, 6);
     setSuggestions(f); setShowSug(f.length > 0);
   };
 
@@ -914,25 +1041,23 @@ export default function App() {
     const t = (tickerOverride || query).trim().toUpperCase();
     if (!t) return;
     if (isDemo) { auth("analyse"); return; }
-    setAnalysisLoading(true);
-    setAnalysisResult(null);
-    setAnalysisError(null);
-    setAnalysedTicker(t);
-    setShowSug(false);
+
+    const limit = profile?.plan === "pro" ? PRO_LIMIT : FREE_LIMIT;
+    const used = profile?.analyses_used || 0;
+    if (used >= limit) {
+      showToastMsg(profile?.plan === "pro" ? "Monthly limit reached (300)." : "Free limit reached. Upgrade to Pro for 300 analyses/month.");
+      return;
+    }
+
+    setAnalysisLoading(true); setAnalysisResult(null); setAnalysisError(null); setAnalysedTicker(t); setShowSug(false);
     try {
-      const res = await fetch("/api/analyse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticker: t }),
-      });
+      const res = await fetch("/api/analyse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker: t }) });
       const data = await res.json();
       if (data && data.verdict) {
         setAnalysisResult({ ...data, ticker: t });
-        setUsedCount(u => {
-          const next = u + 1;
-          localStorage.setItem("brevio_used", next);
-          return next;
-        });
+        await supabase.from("profiles").update({ analyses_used: used + 1 }).eq("id", user.id);
+        await supabase.from("analyses_log").insert({ user_id: user.id, ticker: t });
+        setProfile(p => ({ ...p, analyses_used: used + 1 }));
       } else {
         setAnalysisError(data.error || "Analysis failed. Try again.");
       }
@@ -943,6 +1068,9 @@ export default function App() {
   const typeColor = t => t === "Crypto" ? C.accent : t === "ETF" ? C.green : t === "Commodity" ? "#e8a04a" : C.muted;
   const hour = new Date().getHours();
   const greet = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const firstName = user?.email?.split("@")[0] || "";
+  const limit = profile?.plan === "pro" ? PRO_LIMIT : FREE_LIMIT;
+  const used = profile?.analyses_used || 0;
 
   const STYLES = `
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -956,14 +1084,26 @@ export default function App() {
     ::-webkit-scrollbar-thumb { background: #1e2330; border-radius: 2px; }
   `;
 
+  if (authLoading) return (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <style>{STYLES}</style>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px" }}>
+        <span style={{ fontFamily: "Playfair Display, serif", fontSize: "28px", color: C.accent }}>Brevio</span>
+        <div style={{ width: "20px", height: "20px", border: "2px solid " + C.border, borderTop: "2px solid " + C.accent, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text }}>
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" />
       <style>{STYLES}</style>
 
-      {page === "detail" && selected && <DetailPage ticker={selected} onBack={goBack} isDemo={isDemo} onAuth={auth} prefetchedAnalysis={prefetchedAnalysis} />}
+      {showAdmin && <AdminDashboard onClose={() => setShowAdmin(false)} />}
 
-      {page === "dashboard" && (
+      {!showAdmin && page === "detail" && selected && <DetailPage ticker={selected} onBack={goBack} isDemo={isDemo} onAuth={auth} prefetchedAnalysis={prefetchedAnalysis} user={user} profile={profile} />}
+
+      {!showAdmin && page === "dashboard" && (
         <>
           {isDemo && (
             <div style={{ background: "linear-gradient(90deg, " + C.accent + "22, " + C.accent + "11)", borderBottom: "1px solid " + C.accent + "33", padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
@@ -985,10 +1125,10 @@ export default function App() {
               {!isDemo && (
                 <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
                   <div style={{ width: "60px", height: "3px", background: C.border, borderRadius: "2px", overflow: "hidden" }}>
-                    <div style={{ width: Math.min((usedCount / 300) * 100, 100) + "%", height: "100%", background: usedCount > 250 ? C.red : C.green, borderRadius: "2px", transition: "width 0.3s ease" }} />
+                    <div style={{ width: Math.min((used / limit) * 100, 100) + "%", height: "100%", background: used / limit > 0.8 ? C.red : C.green, borderRadius: "2px", transition: "width 0.3s ease" }} />
                   </div>
                   <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "11px", color: C.muted }}>
-                    <span style={{ color: usedCount > 250 ? C.red : C.green, fontWeight: 500 }}>{usedCount}</span>/300
+                    <span style={{ color: used / limit > 0.8 ? C.red : C.green, fontWeight: 500 }}>{used}</span>/{limit}
                   </span>
                 </div>
               )}
@@ -996,10 +1136,12 @@ export default function App() {
                 <button onClick={() => auth("default")} style={{ background: C.accent, color: "#0a0c10", border: "none", borderRadius: "4px", padding: "7px 16px", fontSize: "11px", letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", fontFamily: "DM Sans, sans-serif", fontWeight: 700 }}>Sign Up Free</button>
               ) : (
                 <>
-                  <button style={{ background: "transparent", border: "none", cursor: "pointer", padding: "5px", display: "flex" }}><Bell style={{ width: "15px", height: "15px", color: C.muted }} /></button>
-                  <button style={{ background: "transparent", border: "none", cursor: "pointer", padding: "5px", display: "flex" }}><Settings style={{ width: "15px", height: "15px", color: C.muted }} /></button>
-                  <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: C.accent + "22", border: "1px solid " + C.accent + "44", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                    <span style={{ fontFamily: "Playfair Display, serif", fontSize: "12px", color: C.accent, fontWeight: 600 }}>L</span>
+                  {profile?.is_admin && (
+                    <button onClick={() => setShowAdmin(true)} style={{ background: C.accent + "18", border: "1px solid " + C.accent + "44", borderRadius: "4px", padding: "5px 10px", cursor: "pointer", fontFamily: "DM Sans, sans-serif", fontSize: "10px", color: C.accent, letterSpacing: "0.1em" }}>Admin</button>
+                  )}
+                  <button onClick={logout} style={{ background: "transparent", border: "none", cursor: "pointer", padding: "5px", display: "flex" }}><LogOut style={{ width: "15px", height: "15px", color: C.muted }} /></button>
+                  <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: C.accent + "22", border: "1px solid " + C.accent + "44", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <span style={{ fontFamily: "Playfair Display, serif", fontSize: "12px", color: C.accent, fontWeight: 600 }}>{firstName[0]?.toUpperCase()}</span>
                   </div>
                 </>
               )}
@@ -1008,17 +1150,15 @@ export default function App() {
 
           <div style={{ maxWidth: "760px", margin: "0 auto", padding: "28px 16px 48px" }}>
             <div style={{ marginBottom: "22px" }}>
-              <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 500, color: C.text, marginBottom: "4px" }}>{isDemo ? "Welcome to Brevio." : greet + ", Leonardo."}</h1>
-              <p style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.muted }}>{isDemo ? "Explore a live preview. Tap any card to open the full analysis." : "Your watchlist is up to date. Tap any card for the full analysis."}</p>
+              <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 500, color: C.text, marginBottom: "4px" }}>{isDemo ? "Welcome to Brevio." : greet + ", " + firstName + "."}</h1>
+              <p style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.muted }}>{isDemo ? "Explore a live preview. Sign up free to unlock AI analysis." : "Your watchlist is live. Tap any card for the full analysis."}</p>
             </div>
 
             <div style={{ marginBottom: "12px" }} ref={wRef}>
               <div style={{ position: "relative" }}>
                 <div style={{ display: "flex", gap: "8px", background: C.panel, border: "1px solid " + (showSug ? C.accent + "44" : C.borderLight), borderRadius: showSug ? "8px 8px 0 0" : "8px", padding: "9px 12px", transition: "border-color 0.2s" }}>
                   <Search style={{ width: "15px", height: "15px", color: C.muted, flexShrink: 0, marginTop: "1px" }} />
-                  <input value={query} onChange={e => handleQ(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && runAnalysis()}
-                    onFocus={() => suggestions.length > 0 && setShowSug(true)}
+                  <input value={query} onChange={e => handleQ(e.target.value)} onKeyDown={e => e.key === "Enter" && runAnalysis()} onFocus={() => suggestions.length > 0 && setShowSug(true)}
                     placeholder="Search stocks, crypto, ETFs, commodities..."
                     style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: C.text, fontSize: "14px", fontFamily: "DM Sans, sans-serif", letterSpacing: "0.04em" }} />
                   <button onClick={() => runAnalysis()} style={{ background: analysisLoading ? C.accentDim : C.accent, color: "#0a0c10", border: "none", borderRadius: "5px", padding: "7px 14px", fontSize: "11px", letterSpacing: "0.12em", textTransform: "uppercase", cursor: "pointer", fontFamily: "DM Sans, sans-serif", fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0, display: "flex", alignItems: "center", gap: "4px", transition: "background 0.2s" }}>
@@ -1031,8 +1171,7 @@ export default function App() {
                     {suggestions.map((item, i) => (
                       <div key={i} onClick={() => { setQuery(item.ticker); setShowSug(false); setTimeout(() => runAnalysis(item.ticker), 50); }}
                         style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", cursor: "pointer", borderBottom: i < suggestions.length - 1 ? "1px solid " + C.border : "none" }}
-                        onMouseEnter={e => e.currentTarget.style.background = C.bgAlt}
-                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                        onMouseEnter={e => e.currentTarget.style.background = C.bgAlt} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                           <span style={{ fontFamily: "Playfair Display, serif", fontSize: "13px", color: C.accent, letterSpacing: "0.06em", minWidth: "48px" }}>{item.ticker}</span>
                           <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", color: C.muted }}>{item.name}</span>
@@ -1050,22 +1189,14 @@ export default function App() {
                   <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "13px", color: C.muted }}>Analysing {analysedTicker}...</span>
                 </div>
               )}
-
               {analysisError && !analysisLoading && (
                 <div style={{ marginTop: "10px", padding: "10px 14px", background: "#1a0a0a", border: "1px solid " + C.red + "33", borderRadius: "6px" }}>
                   <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", color: C.red }}>{analysisError}</span>
                 </div>
               )}
-
               {analysisResult && !analysisLoading && (
                 <div style={{ marginTop: "10px" }}>
-                  <AnalysisCard
-                    result={analysisResult}
-                    watchlist={watchlist}
-                    onClose={() => setAnalysisResult(null)}
-                    onAdd={() => { setWatchlist(p => [...p, analysisResult.ticker]); setAnalysisResult(null); }}
-                    onOpenDetail={() => openDetail(analysisResult.ticker, analysisResult)}
-                  />
+                  <AnalysisCard result={analysisResult} watchlist={watchlist} onClose={() => setAnalysisResult(null)} onAdd={() => { setWatchlist(p => [...p, analysisResult.ticker]); setAnalysisResult(null); }} onOpenDetail={() => openDetail(analysisResult.ticker, analysisResult)} />
                 </div>
               )}
             </div>
@@ -1075,8 +1206,7 @@ export default function App() {
                 <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "10px", letterSpacing: "0.3em", textTransform: "uppercase", color: C.accentDim }}>{isDemo ? "Demo Watchlist" : "Your Watchlist"}</span>
                 <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "11px", color: C.border }}>({watchlist.length})</span>
               </div>
-              <button onClick={() => isDemo ? auth("refresh") : null} style={{ display: "flex", alignItems: "center", gap: "5px", background: "transparent", border: "1px solid " + C.border, borderRadius: "4px", padding: "5px 10px", cursor: "pointer" }}>
-                {isDemo && <Lock style={{ width: "8px", height: "8px", color: C.muted }} />}
+              <button style={{ display: "flex", alignItems: "center", gap: "5px", background: "transparent", border: "1px solid " + C.border, borderRadius: "4px", padding: "5px 10px", cursor: "pointer" }}>
                 <RefreshCw style={{ width: "10px", height: "10px", color: C.muted }} />
                 <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "11px", color: C.muted }}>Refresh all</span>
               </button>
@@ -1088,11 +1218,7 @@ export default function App() {
 
             <div style={{ position: "relative" }} ref={addRef}>
               <div style={{ display: "flex", gap: "8px" }}>
-                <input
-                  value={addInput}
-                  onChange={e => handleAddInput(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && addStock()}
-                  onFocus={() => addSuggestions.length > 0 && setShowAddSug(true)}
+                <input value={addInput} onChange={e => handleAddInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addStock()} onFocus={() => addSuggestions.length > 0 && setShowAddSug(true)}
                   placeholder="Add to watchlist..."
                   style={{ flex: 1, background: C.panel, border: "1px solid " + (showAddSug ? C.accent + "44" : C.border), borderRadius: showAddSug ? "6px 6px 0 0" : "6px", padding: "9px 14px", color: C.text, fontSize: "14px", fontFamily: "DM Sans, sans-serif", outline: "none", letterSpacing: "0.05em", transition: "border-color 0.2s" }} />
                 <button onClick={() => addStock()} style={{ background: "transparent", border: "1px solid " + C.accent + "44", color: C.accent, borderRadius: "6px", padding: "9px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: "5px", fontFamily: "DM Sans, sans-serif", fontSize: "12px", letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
@@ -1105,8 +1231,7 @@ export default function App() {
                   {addSuggestions.map((item, i) => (
                     <div key={i} onClick={() => { setAddInput(item.ticker); setShowAddSug(false); addStock(item.ticker); }}
                       style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 14px", cursor: "pointer", borderBottom: i < addSuggestions.length - 1 ? "1px solid " + C.border : "none" }}
-                      onMouseEnter={e => e.currentTarget.style.background = C.bgAlt}
-                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                      onMouseEnter={e => e.currentTarget.style.background = C.bgAlt} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                         <span style={{ fontFamily: "Playfair Display, serif", fontSize: "13px", color: C.accent, minWidth: "44px" }}>{item.ticker}</span>
                         <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", color: C.muted }}>{item.name}</span>
@@ -1121,7 +1246,7 @@ export default function App() {
         </>
       )}
 
-      {showModal && <SignupModal trigger={modalTrigger} onClose={() => setShowModal(false)} onSignup={signup} />}
+      {showModal && <AuthModal trigger={modalTrigger} onClose={() => setShowModal(false)} onSuccess={() => { setShowModal(false); showToastMsg("Welcome to Brevio!"); }} />}
 
       {toast && (
         <div style={{ position: "fixed", bottom: "32px", left: "50%", transform: "translateX(-50%)", background: C.panel, border: "1px solid " + C.accent + "44", borderRadius: "8px", padding: "11px 20px", display: "flex", alignItems: "center", gap: "10px", boxShadow: "0 8px 32px #00000066", animation: "fadeUp 0.25s ease", zIndex: 999, whiteSpace: "nowrap" }}>
