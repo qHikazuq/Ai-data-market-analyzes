@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { Search, TrendingUp, TrendingDown, Minus, Bell, Settings, Plus, X, RefreshCw, Lock, ArrowRight, Eye, ArrowLeft, Star, Share2, LogOut, Users, BarChart2, Activity } from "lucide-react";
-import { supabase } from "../lib/supabase";
+import { createClient } from "@supabase/supabase-js";
+const supabase = createClient(
+  "https://arjjfcggyftgogpovqks.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFyampmY2dneWZ0Z29ncG92cWtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMjg4MzUsImV4cCI6MjA5MjgwNDgzNX0.AFIAtGSUzS-P4HJAMS-6Gab5rMh4NUtC82VYRipzMnE"
+);
 
 const C = {
   bg: "#0a0c10", bgAlt: "#0d0f14", panel: "#111318",
